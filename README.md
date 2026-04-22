@@ -1,3 +1,4 @@
+<img src="src/lib/website_scr.png" >
 <h1>Doctor AI-kā-sāp</h1>
 
 <h2>IDEJAS APRAKSTS</h2>
