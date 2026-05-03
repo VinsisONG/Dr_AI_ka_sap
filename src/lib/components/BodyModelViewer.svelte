@@ -1,10 +1,27 @@
 <svelte:options runes={false} />
 
+<svelte:head>
+  <link rel="preload" href={MODEL_PATH} as="fetch" />
+  <link rel="preload" href={MODEL_BINARY_PATH} as="fetch" />
+</svelte:head>
+
 <script>
   // @ts-nocheck
+  import { browser } from "$app/environment";
   import { createEventDispatcher, onMount } from "svelte";
 
   const dispatch = createEventDispatcher();
+  const MODEL_PATH = "/myology/scene.gltf";
+  const MODEL_BINARY_PATH = "/myology/scene.bin";
+  const sharedThreeModulesPromise = browser
+    ? Promise.all([
+        import("three"),
+        import("three/examples/jsm/controls/OrbitControls.js"),
+        import("three/examples/jsm/loaders/GLTFLoader.js"),
+      ])
+    : null;
+
+  let decalGeometryPromise;
 
   let container;
   let loadState = "Loading anatomy model...";
@@ -65,11 +82,7 @@
 
     if (yRelative > 0.9) return withSide("upper trapezius");
 
-    if (
-      yRelative > 0.5 &&
-      yRelative < 0.84 &&
-      Math.abs(xRelative) > 0.45
-    ) {
+    if (yRelative > 0.5 && yRelative < 0.84 && Math.abs(xRelative) > 0.45) {
       if (regionDepth === "front") {
         return withSide(yRelative > 0.72 ? "deltoid" : "biceps");
       }
@@ -81,7 +94,9 @@
 
     if (yRelative > 0.79) {
       if (Math.abs(xRelative) > 0.5) {
-        return regionDepth === "back" ? withSide("posterior deltoid") : withSide("deltoid");
+        return regionDepth === "back"
+          ? withSide("posterior deltoid")
+          : withSide("deltoid");
       }
       if (regionDepth === "front") return "pectoralis major";
       if (regionDepth === "back") return "trapezius";
@@ -104,7 +119,9 @@
 
     if (yRelative > 0.52) {
       if (Math.abs(xRelative) > 0.78) {
-        return regionDepth === "back" ? withSide("triceps") : withSide("biceps");
+        return regionDepth === "back"
+          ? withSide("triceps")
+          : withSide("biceps");
       }
       if (regionDepth === "front") {
         return Math.abs(xRelative) > 0.32
@@ -191,34 +208,26 @@
     const cleanup = [];
 
     async function setup() {
-      const THREE = await import("three");
-      const { OrbitControls } = await import(
-        "three/examples/jsm/controls/OrbitControls.js"
-      );
-      const { GLTFLoader } = await import(
-        "three/examples/jsm/loaders/GLTFLoader.js"
-      );
-      const { DecalGeometry } = await import(
-        "three/examples/jsm/geometries/DecalGeometry.js"
-      );
+      const [
+        THREE,
+        { OrbitControls },
+        { GLTFLoader },
+      ] = await sharedThreeModulesPromise;
 
       scene = new THREE.Scene();
-      scene.background = new THREE.Color("#f6f0e6");
-      scene.fog = new THREE.Fog("#f6f0e6", 18, 38);
 
       camera = new THREE.PerspectiveCamera(35, 1, 0.05, 500);
       camera.position.set(0, 1.4, 9);
 
       renderer = new THREE.WebGLRenderer({
-        antialias: true,
+        antialias: window.devicePixelRatio <= 1.5,
         alpha: true,
+        powerPreference: "high-performance",
       });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.08;
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.domElement.className = "viewer-canvas";
       container.appendChild(renderer.domElement);
 
@@ -237,45 +246,48 @@
       };
       controls.target.set(0, 1.1, 0);
 
-      const ambient = new THREE.HemisphereLight("#fff6e9", "#d8d2c8", 1.8);
+      const ambient = new THREE.HemisphereLight("#f4eaea", "#8f8080", 1.75);
       scene.add(ambient);
 
-      const key = new THREE.DirectionalLight("#fffaf0", 2.1);
+      const key = new THREE.DirectionalLight("#f7eded", 2);
       key.position.set(6, 10, 8);
-      key.castShadow = true;
-      key.shadow.mapSize.set(2048, 2048);
       scene.add(key);
 
-      const fill = new THREE.DirectionalLight("#d3e4ff", 1.1);
+      const fill = new THREE.DirectionalLight("#d1caca", 1);
       fill.position.set(-7, 5, 6);
       scene.add(fill);
 
-      const rim = new THREE.DirectionalLight("#ffd7c2", 0.9);
+      const rim = new THREE.DirectionalLight("#8b3a3a", 0.8);
       rim.position.set(0, 6, -8);
       scene.add(rim);
 
-      const floor = new THREE.Mesh(
-        new THREE.CircleGeometry(7.5, 64),
-        new THREE.MeshStandardMaterial({
-          color: "#dcd3c6",
-          transparent: true,
-          opacity: 0.55,
-          roughness: 0.95,
-          metalness: 0,
-        }),
-      );
-      floor.rotation.x = -Math.PI / 2;
-      floor.position.y = -4.35;
-      floor.receiveShadow = true;
-      scene.add(floor);
+      const loadingManager = new THREE.LoadingManager();
+      loadingManager.onStart = () => {
+        loadState = "Loading anatomy model...";
+      };
+      loadingManager.onProgress = (_, itemsLoaded, itemsTotal) => {
+        if (itemsTotal > 0) {
+          loadState = `Loading anatomy model... ${Math.round(
+            (itemsLoaded / itemsTotal) * 100,
+          )}%`;
+        }
+      };
 
-      const loader = new GLTFLoader();
+      const loader = new GLTFLoader(loadingManager);
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
       const selectableMeshes = [];
-      const modelUrl = new URL("/myology/scene.gltf", window.location.origin);
+      const modelUrl = new URL(MODEL_PATH, window.location.origin);
 
-      function createPainMarker(hit) {
+      async function getDecalGeometry() {
+        decalGeometryPromise ??= import(
+          "three/examples/jsm/geometries/DecalGeometry.js"
+        ).then((module) => module.DecalGeometry);
+        return decalGeometryPromise;
+      }
+
+      async function createPainMarker(hit) {
+        const DecalGeometry = await getDecalGeometry();
         const marker = new THREE.Group();
         const worldNormal = hit.face?.normal
           ?.clone()
@@ -295,8 +307,8 @@
           new THREE.Vector3(0.28, 0.28, 0.26),
         );
         const outerMaterial = new THREE.MeshStandardMaterial({
-          color: "#ff8f7b",
-          emissive: "#ffb2a5",
+          color: "#9f5454",
+          emissive: "#6e0505",
           emissiveIntensity: 0.28,
           transparent: true,
           opacity: 0.18,
@@ -315,8 +327,8 @@
           new THREE.Vector3(0.16, 0.16, 0.22),
         );
         const innerMaterial = new THREE.MeshStandardMaterial({
-          color: "#ff6b57",
-          emissive: "#ff9b8d",
+          color: "#6e0505",
+          emissive: "#8f2b2b",
           emissiveIntensity: 0.42,
           transparent: true,
           opacity: 0.36,
@@ -391,10 +403,11 @@
         updateInteractionState(null);
       }
 
-      function handleSelect() {
+      async function handleSelect() {
         if (!selectMode || !hoverHit) return;
 
-        painMarkers = [...painMarkers, createPainMarker(hoverHit)];
+        const marker = await createPainMarker(hoverHit);
+        painMarkers = [...painMarkers, marker];
 
         const areaLabel = getRegionLabel(
           hoverHit.object,
@@ -426,9 +439,6 @@
 
           loadedRoot.traverse((child) => {
             if (!child.isMesh) return;
-
-            child.castShadow = true;
-            child.receiveShadow = true;
 
             const materialName = getPrimaryMaterial(child)?.name ?? "";
             if (materialName === "Muscles.001") {
@@ -473,6 +483,10 @@
           ready = true;
           selectedLabel = formatPainSummary(selectedAreas);
           resize();
+
+          if (!frameId) {
+            animate();
+          }
         } catch (error) {
           console.error("Failed to load anatomy model", error);
 
@@ -521,8 +535,6 @@
         controls.update();
         renderer.render(scene, camera);
       }
-
-      animate();
     }
 
     setup();
@@ -554,10 +566,6 @@
 
 <div class="viewer-card">
   <div class="viewer-toolbar">
-    <div>
-      <p class="eyebrow">3D Body Map</p>
-      <h2>Muscle Explorer</h2>
-    </div>
     <div class="toolbar-actions">
       <button
         type="button"
@@ -585,7 +593,7 @@
       <div class="viewer-status">{loadState}</div>
     {/if}
 
-    <div class="viewer-info-panel" class:ready={ready}>
+    <div class="viewer-info-panel" class:ready>
       <p class="viewer-info-copy">{selectedLabel}</p>
       <p class="credit">
         3D model based on "Myology" by Z-Anatomy, licensed CC-BY-SA 4.0.
@@ -596,56 +604,31 @@
 
 <style>
   .viewer-card {
+    position: relative;
     width: 100%;
+    height: 100%;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    background: radial-gradient(
-        circle at top left,
-        rgba(255, 240, 224, 0.9),
-        transparent 36%
-      ),
-      linear-gradient(
-        165deg,
-        rgba(255, 252, 247, 0.98),
-        rgba(239, 232, 220, 0.94)
-      );
-    border: 1px solid rgba(70, 58, 46, 0.14);
-    border-radius: 20px;
-    padding: 14px;
-    box-shadow:
-      0 28px 80px rgba(38, 26, 10, 0.16),
-      inset 0 1px 0 rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(14px);
   }
 
   .viewer-toolbar {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .eyebrow {
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #7c6956;
-    margin-bottom: 6px;
-  }
-
-  h2 {
-    font-size: clamp(1.5rem, 2vw, 2.1rem);
-    font-weight: 500;
-    color: #27190d;
-    line-height: 1;
+    justify-content: center;
+    width: max-content;
+    max-width: calc(100% - 32px);
   }
 
   .toolbar-actions {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: center;
   }
 
   .toolbar-actions button {
@@ -655,8 +638,8 @@
     font: inherit;
     font-size: 0.86rem;
     cursor: pointer;
-    background: #2f1f12;
-    color: #fff6e8;
+    background: var(--accent-strong, #520000);
+    color: #fff5f5;
     transition:
       transform 0.18s ease,
       opacity 0.18s ease,
@@ -669,43 +652,39 @@
   }
 
   .toolbar-actions button.selected {
-    background: #b55425;
+    background: var(--accent, #6e0505);
   }
 
   .toolbar-actions button.ghost {
-    background: rgba(49, 33, 19, 0.08);
-    color: #352417;
+    background: color-mix(in srgb, var(--surface, #faf8f7) 72%, transparent);
+    color: var(--text, #241919);
+    border: 1px solid color-mix(in srgb, var(--accent, #6e0505) 18%, var(--border, #cfc1c1));
   }
 
   .viewer-shell {
     position: relative;
-    min-height: 620px;
-    border-radius: 22px;
-    overflow: hidden;
-    background: radial-gradient(
-        circle at 50% 22%,
-        rgba(255, 246, 232, 0.84),
-        transparent 38%
-      ),
-      linear-gradient(180deg, #fff7eb 0%, #efe2d2 100%);
-    border: 1px solid rgba(80, 60, 40, 0.12);
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow: visible;
   }
 
   .viewer-info-panel {
     position: absolute;
-    left: 18px;
-    right: 18px;
-    bottom: 18px;
+    left: 24px;
+    right: auto;
+    bottom: 20px;
+    max-width: min(420px, calc(100% - 48px));
     display: flex;
     flex-direction: column;
     gap: 6px;
     padding: 12px 14px;
     border-radius: 16px;
-    background: rgba(255, 249, 240, 0.92);
-    border: 1px solid rgba(92, 68, 42, 0.12);
+    background: color-mix(in srgb, var(--accent, #6e0505) 62%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent, #6e0505) 38%, var(--border, #cfc1c1));
     backdrop-filter: blur(14px);
-    box-shadow: 0 14px 28px rgba(50, 32, 14, 0.1);
-    color: #4a3828;
+    box-shadow: 0 14px 28px rgba(34, 14, 14, 0.16);
+    color: #fff1f1;
     font-size: 0.9rem;
     line-height: 1.45;
     pointer-events: none;
@@ -722,28 +701,30 @@
 
   .credit {
     font-size: 0.78rem;
-    color: #7c6956;
+    color: rgba(255, 232, 232, 0.82);
   }
 
   :global(.viewer-canvas) {
     width: 100%;
     height: 100%;
     display: block;
+    filter: drop-shadow(0 40px 44px rgba(52, 18, 18, 0.2));
   }
 
   .viewer-status {
     position: absolute;
-    inset: 18px;
-    display: grid;
-    place-items: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(320px, calc(100% - 48px));
     text-align: center;
     border-radius: 18px;
     background: linear-gradient(
       145deg,
-      rgba(255, 251, 244, 0.96),
-      rgba(240, 226, 210, 0.88)
+      rgba(250, 246, 246, 0.96),
+      rgba(231, 222, 222, 0.9)
     );
-    color: #5e4a37;
+    color: var(--text, #241919);
     font-size: 0.96rem;
     letter-spacing: 0.02em;
     z-index: 3;
@@ -751,33 +732,29 @@
 
   @media (max-width: 980px) {
     .viewer-shell {
-      min-height: 520px;
+      min-height: 0;
     }
   }
 
   @media (max-width: 700px) {
-    .viewer-card {
-      border-radius: 22px;
-      padding: 14px;
-    }
-
     .viewer-toolbar {
-      flex-direction: column;
+      top: 14px;
+      max-width: calc(100% - 24px);
     }
 
     .toolbar-actions {
       width: 100%;
-      justify-content: flex-start;
+      gap: 8px;
     }
 
     .viewer-shell {
-      min-height: 420px;
+      min-height: 0;
     }
 
     .viewer-info-panel {
       left: 12px;
-      right: 12px;
       bottom: 12px;
+      max-width: calc(100% - 24px);
     }
   }
 </style>

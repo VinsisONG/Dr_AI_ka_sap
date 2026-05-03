@@ -10,8 +10,10 @@ declare global {
 			user: User | null;
 		}
 		interface PageData {
-			session: Session | null;
-			user: User | null;
+			viewer: {
+				isAuthenticated: true;
+				nickname: string | null;
+			} | null;
 		}
 		// interface PageState {}
 		// interface Platform {}

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { resolve } from '$app/paths';
 import { fail, redirect } from '@sveltejs/kit';
 import { clearAuthCookies, createSupabaseServerClient } from '$lib/server/supabase';
 
@@ -112,7 +113,7 @@ export const actions = {
       console.error('Profile save failed:', saveError);
 
       return fail(500, {
-        profileError: saveError.message || 'Profile details could not be saved. Please try again.'
+        profileError: 'Profile details could not be saved. Please try again.'
       });
     }
 
@@ -123,6 +124,6 @@ export const actions = {
 
   logout: async ({ cookies }) => {
     clearAuthCookies(cookies);
-    throw redirect(303, '/login');
+    throw redirect(303, resolve('/login'));
   }
 };

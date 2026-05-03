@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { resolve } from '$app/paths';
 import { fail, redirect } from '@sveltejs/kit';
 import { createSupabaseServerClient, setAuthCookies } from '$lib/server/supabase';
 
@@ -30,7 +31,7 @@ export const actions = {
       return fail(401, {
         mode: 'login',
         values,
-        error: error.message || 'Invalid email or password.'
+        error: 'Invalid email or password.'
       });
     }
 
@@ -44,7 +45,7 @@ export const actions = {
 
     setAuthCookies(cookies, authData.session);
 
-    throw redirect(303, url.searchParams.get('redirectTo') || '/');
+    throw redirect(303, url.searchParams.get('redirectTo') || resolve('/app'));
   },
 
   signup: async ({ request }) => {
@@ -81,23 +82,36 @@ export const actions = {
     }
 
     const supabase = createSupabaseServerClient();
-    const { error } = await supabase.auth.signUp({
+    const { data: authData, error } = await supabase.auth.signUp({
       email,
-      password,
-      options: {
-        data: {
-          city,
-          country
-        }
-      }
+      password
     });
 
     if (error) {
       return fail(400, {
         mode: 'signup',
         values,
-        error: error.message
+        error: 'Account could not be created. Please review your details and try again.'
       });
+    }
+
+    if (authData.user?.id) {
+      const { error: locationError } = await supabase.from('c_and_c').upsert(
+        {
+          id: authData.user.id,
+          city,
+          country
+        },
+        { onConflict: 'id' }
+      );
+
+      if (locationError) {
+        return fail(500, {
+          mode: 'signup',
+          values,
+          error: 'Account was created, but profile details could not be saved yet.'
+        });
+      }
     }
 
     return {
@@ -121,14 +135,14 @@ export const actions = {
 
     const supabase = createSupabaseServerClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${url.origin}/reset-password`
+      redirectTo: `${url.origin}${resolve('/reset-password')}`
     });
 
     if (error) {
       return fail(400, {
         mode: 'forgot',
         values,
-        error: error.message
+        error: 'Reset link could not be sent. Please try again.'
       });
     }
 

@@ -1,7 +1,20 @@
+import { base, resolve as resolvePath } from '$app/paths';
 import { redirect } from '@sveltejs/kit';
 import { clearAuthCookies, getUserFromCookies, setAuthCookies } from '$lib/server/supabase';
 
-const PUBLIC_PATHS = new Set(['/login', '/reset-password']);
+/** @param {string} pathname */
+function isProtectedPage(pathname) {
+  return pathname === '/app' || pathname.startsWith('/app/');
+}
+
+/** @param {string} pathname */
+function stripBase(pathname) {
+  if (base && pathname.startsWith(base)) {
+    return pathname.slice(base.length) || '/';
+  }
+
+  return pathname;
+}
 
 export async function handle({ event, resolve }) {
   const hadAuthCookies =
@@ -19,16 +32,17 @@ export async function handle({ event, resolve }) {
   }
 
   const { pathname, search } = event.url;
-  const isApiRoute = pathname.startsWith('/api/');
-  const isPublicRoute = PUBLIC_PATHS.has(pathname);
+  const routePath = stripBase(pathname);
+  const isApiRoute = routePath.startsWith('/api/');
+  const isProtectedRoute = isProtectedPage(routePath);
 
-  if (!user && !isApiRoute && !isPublicRoute) {
+  if (!user && !isApiRoute && isProtectedRoute) {
     const redirectTo = `${pathname}${search}`;
-    throw redirect(303, `/login?redirectTo=${encodeURIComponent(redirectTo)}`);
+    throw redirect(303, resolvePath(`/login?redirectTo=${encodeURIComponent(redirectTo)}`));
   }
 
-  if (user && pathname === '/login') {
-    throw redirect(303, '/');
+  if (user && (routePath === '/' || routePath === '/login')) {
+    throw redirect(303, resolvePath('/app'));
   }
 
   return resolve(event);
