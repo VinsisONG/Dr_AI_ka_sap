@@ -9,6 +9,36 @@ function getFormValues(fields = {}) {
   );
 }
 
+function getSignupErrorMessage(error) {
+  const message = error?.message?.toLowerCase?.() ?? '';
+
+  if (message.includes('user already registered')) {
+    return 'That email is already registered. Try logging in or resetting your password.';
+  }
+
+  if (message.includes('email address') || message.includes('invalid email')) {
+    return 'Please enter a valid email address.';
+  }
+
+  if (message.includes('password')) {
+    return 'That password was rejected by authentication. Use a stronger password and try again.';
+  }
+
+  if (message.includes('signup is disabled')) {
+    return 'New account creation is currently disabled.';
+  }
+
+  if (message.includes('database error saving new user')) {
+    return 'The account could not be created because the authentication database rejected the new user.';
+  }
+
+  if (message.includes('error sending confirmation email')) {
+    return 'The account could not be created because the confirmation email could not be sent.';
+  }
+
+  return error?.message || 'Account could not be created. Please review your details and try again.';
+}
+
 export const actions = {
   login: async ({ request, cookies, url }) => {
     const data = await request.formData();
@@ -48,7 +78,7 @@ export const actions = {
     throw redirect(303, url.searchParams.get('redirectTo') || resolve('/app'));
   },
 
-  signup: async ({ request }) => {
+  signup: async ({ request, url }) => {
     const data = await request.formData();
     const email = data.get('email')?.toString().trim();
     const password = data.get('password')?.toString();
@@ -84,14 +114,23 @@ export const actions = {
     const supabase = createSupabaseServerClient();
     const { data: authData, error } = await supabase.auth.signUp({
       email,
-      password
+      password,
+      options: {
+        emailRedirectTo: `${url.origin}${resolve('/login?mode=login')}`
+      }
     });
 
     if (error) {
+      console.error('Supabase signup failed', {
+        message: error.message,
+        status: error.status,
+        code: error.code
+      });
+
       return fail(400, {
         mode: 'signup',
         values,
-        error: 'Account could not be created. Please review your details and try again.'
+        error: getSignupErrorMessage(error)
       });
     }
 
