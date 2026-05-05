@@ -177,10 +177,13 @@ Set these in Vercel before deploying:
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
 GEMINI_API_KEY=...
+PUBLIC_MODEL_URL=
 PUBLIC_MYOLOGY_MODEL_ROOT=/myology
 ```
 
-`PUBLIC_MYOLOGY_MODEL_ROOT` is optional. Leave it as `/myology` if you host the 3D model files inside the app. Set it to an external folder URL if you host the anatomy model on a CDN, Supabase Storage, Vercel Blob, or another static host.
+`PUBLIC_MODEL_URL` is optional and takes priority when set. Use it when your `.gltf` file is hosted directly on Cloudflare or another CDN.
+
+`PUBLIC_MYOLOGY_MODEL_ROOT` is also optional. Leave it as `/myology` if you host the 3D model files inside the app. Set it to an external folder URL if you host the anatomy model on a CDN, Supabase Storage, Vercel Blob, or another static host.
 
 ## Deploy to a real URL
 
@@ -189,8 +192,9 @@ PUBLIC_MYOLOGY_MODEL_ROOT=/myology
 1. Push this repo to GitHub, GitLab, or Bitbucket
 2. Import the repo into Vercel
 3. Add the environment variables above
-4. If you are not storing the anatomy model inside the repo, set `PUBLIC_MYOLOGY_MODEL_ROOT` to the public folder URL that contains `scene.gltf`, `scene.bin`, and `license.txt`
-5. Deploy
+4. If the `.gltf` file is hosted on Cloudflare, set `PUBLIC_MODEL_URL` to the full public URL of that `scene.gltf` file
+5. Otherwise, if you are not storing the anatomy model inside the repo, set `PUBLIC_MYOLOGY_MODEL_ROOT` to the public folder URL that contains `scene.gltf`, `scene.bin`, and `license.txt`
+6. Deploy
 
 ### Option 2. Vercel CLI
 
@@ -202,10 +206,11 @@ npx vercel
 
 `static/myology/scene.bin` is about 161 MB, which is too large for a normal GitHub push. For a quick Vercel connection, use one of these:
 
-1. Host the `myology` folder somewhere public and set `PUBLIC_MYOLOGY_MODEL_ROOT` to that folder URL.
-2. Use Git LFS for `static/myology/scene.bin` before pushing to GitHub.
+1. Host `scene.gltf` and its referenced files somewhere public and set `PUBLIC_MODEL_URL` to the full public URL of `scene.gltf`.
+2. Host the `myology` folder somewhere public and set `PUBLIC_MYOLOGY_MODEL_ROOT` to that folder URL.
+3. Use Git LFS for `static/myology/scene.bin` before pushing to GitHub.
 
-If you use option 1, the folder must contain:
+If you use the folder-based option, the folder must contain:
 
 ```txt
 scene.gltf

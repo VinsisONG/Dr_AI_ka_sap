@@ -8,10 +8,29 @@
   import { createEventDispatcher, onMount } from "svelte";
 
   const dispatch = createEventDispatcher();
+  const configuredModelUrl = env.PUBLIC_MODEL_URL?.trim();
   const configuredModelRoot = env.PUBLIC_MYOLOGY_MODEL_ROOT?.trim().replace(/\/$/, "");
-  const modelRootCandidates = configuredModelRoot
-    ? [configuredModelRoot]
-    : [...new Set([`${base}/myology`, "/myology"].map((path) => path.replace(/\/$/, "")))];
+  const modelSourceCandidates = [
+    configuredModelUrl
+      ? {
+          url: configuredModelUrl,
+          label: configuredModelUrl,
+        }
+      : null,
+    ...(configuredModelRoot
+      ? [
+          {
+            url: `${configuredModelRoot}/scene.gltf`,
+            label: configuredModelRoot,
+          },
+        ]
+      : [...new Set([`${base}/myology`, "/myology"].map((path) => path.replace(/\/$/, "")))].map(
+          (path) => ({
+            url: `${path}/scene.gltf`,
+            label: path,
+          }),
+        )),
+  ].filter(Boolean);
   const sharedThreeModulesPromise = browser
     ? Promise.all([
         import("three"),
@@ -41,11 +60,14 @@
     return Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
   }
 
-  function getModelLoadErrorMessage(error, attemptedRoots = modelRootCandidates) {
+  function getModelLoadErrorMessage(
+    error,
+    attemptedLocations = modelSourceCandidates.map((candidate) => candidate.label),
+  ) {
     const rawMessage =
       error?.message || error?.target?.statusText || error?.target?.responseURL || "";
     const normalized = rawMessage.toLowerCase();
-    const rootSummary = attemptedRoots.join(" or ");
+    const locationSummary = attemptedLocations.join(" or ");
 
     if (
       normalized.includes("404") ||
@@ -53,7 +75,7 @@
       normalized.includes("scene.gltf") ||
       normalized.includes("scene.bin")
     ) {
-      return `The anatomy model files were not found at ${rootSummary}. Make sure that scene.gltf and scene.bin are publicly available there, or set PUBLIC_MYOLOGY_MODEL_ROOT to the correct folder URL.`;
+      return `The anatomy model files were not found at ${locationSummary}. Make sure the GLTF URL is public, its referenced files are reachable, and that PUBLIC_MODEL_URL or PUBLIC_MYOLOGY_MODEL_ROOT points to the correct location.`;
     }
 
     return `The anatomy model could not be loaded (${rawMessage || "unknown loading error"}).`;
@@ -468,10 +490,10 @@
       async function loadModel() {
         let lastError;
 
-        for (const [rootIndex, modelRoot] of modelRootCandidates.entries()) {
+        for (const [sourceIndex, modelSource] of modelSourceCandidates.entries()) {
           for (let attempt = 1; attempt <= 2; attempt += 1) {
             try {
-              const url = new URL(`${modelRoot}/scene.gltf`, window.location.origin);
+              const url = new URL(modelSource.url, window.location.origin);
               if (attempt > 1) {
                 url.searchParams.set("retry", String(attempt));
               }
@@ -479,7 +501,7 @@
               loadState =
                 attempt > 1
                   ? "Retrying anatomy model load..."
-                  : rootIndex > 0
+                  : sourceIndex > 0
                     ? "Trying fallback anatomy model path..."
                     : "Loading anatomy model...";
 
