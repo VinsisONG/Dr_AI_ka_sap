@@ -17,8 +17,10 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('$env/static/private', () => ({
-  GEMINI_API_KEY: 'test-gemini-key'
+vi.mock('$env/dynamic/private', () => ({
+  env: {
+    GEMINI_API_KEY: 'test-gemini-key'
+  }
 }));
 
 vi.mock('$lib/server/supabase', () => ({

@@ -1,10 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
 export function createSupabaseServerClient() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    throw new Error('Supabase server env vars are missing: SUPABASE_URL and/or SUPABASE_ANON_KEY');
+  }
+
+  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

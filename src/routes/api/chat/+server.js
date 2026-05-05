@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { GEMINI_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { json } from '@sveltejs/kit';
 import { createSupabaseServerClient } from '$lib/server/supabase';
 
@@ -515,7 +515,7 @@ export async function POST({ request, locals }) {
     return json({ message: 'You must be logged in to use the chat.' }, { status: 401 });
   }
 
-  if (!GEMINI_API_KEY) {
+  if (!env.GEMINI_API_KEY) {
     return json({ message: 'The medical assistant is temporarily unavailable.' }, { status: 500 });
   }
 
@@ -595,7 +595,7 @@ export async function POST({ request, locals }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
+          'x-goog-api-key': env.GEMINI_API_KEY
         },
         body: geminiRequestBody,
         signal: controller.signal
