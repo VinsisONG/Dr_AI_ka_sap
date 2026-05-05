@@ -177,7 +177,10 @@ Set these in Vercel before deploying:
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
 GEMINI_API_KEY=...
+PUBLIC_MYOLOGY_MODEL_ROOT=/myology
 ```
+
+`PUBLIC_MYOLOGY_MODEL_ROOT` is optional. Leave it as `/myology` if you host the 3D model files inside the app. Set it to an external folder URL if you host the anatomy model on a CDN, Supabase Storage, Vercel Blob, or another static host.
 
 ## Deploy to a real URL
 
@@ -186,12 +189,28 @@ GEMINI_API_KEY=...
 1. Push this repo to GitHub, GitLab, or Bitbucket
 2. Import the repo into Vercel
 3. Add the environment variables above
-4. Deploy
+4. If you are not storing the anatomy model inside the repo, set `PUBLIC_MYOLOGY_MODEL_ROOT` to the public folder URL that contains `scene.gltf`, `scene.bin`, and `license.txt`
+5. Deploy
 
 ### Option 2. Vercel CLI
 
 ```sh
 npx vercel
+```
+
+## Anatomy model on Vercel
+
+`static/myology/scene.bin` is about 161 MB, which is too large for a normal GitHub push. For a quick Vercel connection, use one of these:
+
+1. Host the `myology` folder somewhere public and set `PUBLIC_MYOLOGY_MODEL_ROOT` to that folder URL.
+2. Use Git LFS for `static/myology/scene.bin` before pushing to GitHub.
+
+If you use option 1, the folder must contain:
+
+```txt
+scene.gltf
+scene.bin
+license.txt
 ```
 
 ## Supabase setup after deploy

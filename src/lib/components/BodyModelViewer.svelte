@@ -3,11 +3,13 @@
 <script>
   // @ts-nocheck
   import { browser } from "$app/environment";
+  import { env } from "$env/dynamic/public";
   import { createEventDispatcher, onMount } from "svelte";
 
   const dispatch = createEventDispatcher();
-  const MODEL_PATH = "/myology/scene.gltf";
-  const MODEL_BINARY_PATH = "/myology/scene.bin";
+  const MODEL_ROOT = (env.PUBLIC_MYOLOGY_MODEL_ROOT || "/myology").replace(/\/$/, "");
+  const MODEL_PATH = `${MODEL_ROOT}/scene.gltf`;
+  const MODEL_BINARY_PATH = `${MODEL_ROOT}/scene.bin`;
   const sharedThreeModulesPromise = browser
     ? Promise.all([
         import("three"),
@@ -75,18 +77,18 @@
       return side === "center" ? label : `${side} ${label}`;
     }
 
-    if (yRelative > 0.84 && Math.abs(xRelative) < 0.2) return "neck";
+    if (yRelative > 0.8 && Math.abs(xRelative) < 0.16) return "neck";
 
     if (yRelative > 0.9) return withSide("upper trapezius");
 
-    if (yRelative > 0.5 && yRelative < 0.84 && Math.abs(xRelative) > 0.45) {
-      if (yRelative > 0.74) {
+    if (yRelative > 0.48 && yRelative < 0.84 && Math.abs(xRelative) > 0.34) {
+      if (yRelative > 0.68) {
         return regionDepth === "back"
           ? withSide("posterior deltoid")
           : withSide("deltoid");
       }
 
-      if (yRelative < 0.62) {
+      if (yRelative < 0.58) {
         if (regionDepth === "front") {
           return withSide("forearm flexors");
         }
@@ -156,8 +158,8 @@
           : "quadriceps";
       }
 
-      if (regionDepth === "back" && yRelative < 0.52) {
-        return Math.abs(xRelative) > 0.18
+      if (regionDepth === "back" && yRelative < 0.55 && Math.abs(xRelative) > 0.06) {
+        return Math.abs(xRelative) > 0.22
           ? withSide("gluteus medius")
           : "gluteus maximus";
       }
