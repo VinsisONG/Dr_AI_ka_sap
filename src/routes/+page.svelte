@@ -1,5 +1,6 @@
 <script>
   import { resolve } from "$app/paths";
+  import frontPhoto from "$lib/assets/front_photo.jpg";
 </script>
 
 <svelte:head>
@@ -21,14 +22,21 @@
 
       <div class="actions">
         <a class="button primary" href={resolve("/login?mode=login")}>Log In</a>
-        <a class="button secondary" href={resolve("/login?mode=signup")}>Sign Up</a>
+        <a class="button secondary" href={resolve("/login?mode=signup")}
+          >Sign Up</a
+        >
       </div>
     </div>
 
     <div class="preview-box" aria-label="Screenshot placeholder">
       <div class="preview-frame">
-        <p class="preview-label">App Screenshot</p>
-        <p class="preview-note">Add your product image here later.</p>
+        <img
+          class="preview-image"
+          src={frontPhoto}
+          alt="Athlete recovery support preview"
+          width="600"
+          height="370"
+        />
       </div>
     </div>
   </section>
@@ -54,7 +62,7 @@
   .hero {
     width: min(1120px, 100%);
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 480px);
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 636px);
     gap: 48px;
     align-items: center;
   }
@@ -127,7 +135,7 @@
   }
 
   .preview-box {
-    min-height: 520px;
+    width: min(100%, 636px);
     padding: 18px;
     border-radius: 32px;
     background: rgba(103, 57, 57, 0.08);
@@ -136,8 +144,8 @@
   }
 
   .preview-frame {
-    height: 100%;
-    min-height: 484px;
+    width: 100%;
+    min-height: 406px;
     border-radius: 24px;
     border: 2px dashed rgba(106, 31, 31, 0.24);
     background: linear-gradient(
@@ -152,19 +160,13 @@
     padding: 24px;
   }
 
-  .preview-label {
-    margin: 0;
-    font-size: 0.84rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: #7f5f5f;
-  }
-
-  .preview-note {
-    margin: 12px 0 0;
-    font-size: 1.1rem;
-    line-height: 1.6;
-    color: #5a4040;
+  .preview-image {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    border-radius: 16px;
+    display: block;
+    box-shadow: 0 18px 32px rgba(54, 20, 20, 0.14);
   }
 
   @media (max-width: 860px) {
@@ -183,11 +185,11 @@
     }
 
     .preview-box {
-      min-height: 360px;
+      width: 100%;
     }
 
     .preview-frame {
-      min-height: 324px;
+      min-height: auto;
     }
   }
 </style>

@@ -1,10 +1,5 @@
 <svelte:options runes={false} />
 
-<svelte:head>
-  <link rel="preload" href={MODEL_PATH} as="fetch" />
-  <link rel="preload" href={MODEL_BINARY_PATH} as="fetch" />
-</svelte:head>
-
 <script>
   // @ts-nocheck
   import { browser } from "$app/environment";
@@ -80,20 +75,38 @@
       return side === "center" ? label : `${side} ${label}`;
     }
 
+    if (yRelative > 0.84 && Math.abs(xRelative) < 0.2) return "neck";
+
     if (yRelative > 0.9) return withSide("upper trapezius");
 
     if (yRelative > 0.5 && yRelative < 0.84 && Math.abs(xRelative) > 0.45) {
+      if (yRelative > 0.74) {
+        return regionDepth === "back"
+          ? withSide("posterior deltoid")
+          : withSide("deltoid");
+      }
+
+      if (yRelative < 0.62) {
+        if (regionDepth === "front") {
+          return withSide("forearm flexors");
+        }
+        if (regionDepth === "back") {
+          return withSide("forearm extensors");
+        }
+        return withSide("forearm");
+      }
+
       if (regionDepth === "front") {
-        return withSide(yRelative > 0.72 ? "deltoid" : "biceps");
+        return withSide("biceps");
       }
       if (regionDepth === "back") {
-        return withSide(yRelative > 0.72 ? "posterior deltoid" : "triceps");
+        return withSide("triceps");
       }
       return withSide("brachialis");
     }
 
     if (yRelative > 0.79) {
-      if (Math.abs(xRelative) > 0.5) {
+      if (Math.abs(xRelative) > 0.6) {
         return regionDepth === "back"
           ? withSide("posterior deltoid")
           : withSide("deltoid");
@@ -105,7 +118,7 @@
 
     if (yRelative > 0.66) {
       if (regionDepth === "front") {
-        return Math.abs(xRelative) > 0.26
+        return Math.abs(xRelative) > 0.38
           ? withSide("serratus anterior")
           : "pectoralis major";
       }
@@ -137,6 +150,18 @@
     }
 
     if (yRelative > 0.4) {
+      if (regionDepth === "front" && yRelative < 0.47) {
+        return Math.abs(xRelative) < 0.16
+          ? withSide("adductors")
+          : "quadriceps";
+      }
+
+      if (regionDepth === "back" && yRelative < 0.52) {
+        return Math.abs(xRelative) > 0.18
+          ? withSide("gluteus medius")
+          : "gluteus maximus";
+      }
+
       if (Math.abs(xRelative) > 0.42) {
         return regionDepth === "back"
           ? withSide("gluteus medius")
@@ -149,7 +174,7 @@
 
     if (yRelative > 0.24) {
       if (regionDepth === "front") {
-        return Math.abs(xRelative) > 0.25
+        return Math.abs(xRelative) < 0.16
           ? withSide("adductors")
           : "quadriceps";
       }
@@ -208,11 +233,8 @@
     const cleanup = [];
 
     async function setup() {
-      const [
-        THREE,
-        { OrbitControls },
-        { GLTFLoader },
-      ] = await sharedThreeModulesPromise;
+      const [THREE, { OrbitControls }, { GLTFLoader }] =
+        await sharedThreeModulesPromise;
 
       scene = new THREE.Scene();
 
@@ -564,6 +586,11 @@
   });
 </script>
 
+<svelte:head>
+  <link rel="preload" href={MODEL_PATH} as="fetch" />
+  <link rel="preload" href={MODEL_BINARY_PATH} as="fetch" />
+</svelte:head>
+
 <div class="viewer-card">
   <div class="viewer-toolbar">
     <div class="toolbar-actions">
@@ -658,7 +685,8 @@
   .toolbar-actions button.ghost {
     background: color-mix(in srgb, var(--surface, #faf8f7) 72%, transparent);
     color: var(--text, #241919);
-    border: 1px solid color-mix(in srgb, var(--accent, #6e0505) 18%, var(--border, #cfc1c1));
+    border: 1px solid
+      color-mix(in srgb, var(--accent, #6e0505) 18%, var(--border, #cfc1c1));
   }
 
   .viewer-shell {
@@ -681,7 +709,8 @@
     padding: 12px 14px;
     border-radius: 16px;
     background: color-mix(in srgb, var(--accent, #6e0505) 62%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent, #6e0505) 38%, var(--border, #cfc1c1));
+    border: 1px solid
+      color-mix(in srgb, var(--accent, #6e0505) 38%, var(--border, #cfc1c1));
     backdrop-filter: blur(14px);
     box-shadow: 0 14px 28px rgba(34, 14, 14, 0.16);
     color: #fff1f1;
