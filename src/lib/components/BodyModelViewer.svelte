@@ -3,13 +3,15 @@
 <script>
   // @ts-nocheck
   import { browser } from "$app/environment";
+  import { base } from "$app/paths";
   import { env } from "$env/dynamic/public";
   import { createEventDispatcher, onMount } from "svelte";
 
   const dispatch = createEventDispatcher();
-  const MODEL_ROOT = (env.PUBLIC_MYOLOGY_MODEL_ROOT || "/myology").replace(/\/$/, "");
-  const MODEL_PATH = `${MODEL_ROOT}/scene.gltf`;
-  const MODEL_BINARY_PATH = `${MODEL_ROOT}/scene.bin`;
+  const configuredModelRoot = env.PUBLIC_MYOLOGY_MODEL_ROOT?.trim().replace(/\/$/, "");
+  const modelRootCandidates = configuredModelRoot
+    ? [configuredModelRoot]
+    : [...new Set([`${base}/myology`, "/myology"].map((path) => path.replace(/\/$/, "")))];
   const sharedThreeModulesPromise = browser
     ? Promise.all([
         import("three"),
@@ -37,6 +39,24 @@
 
   function getPrimaryMaterial(mesh) {
     return Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+  }
+
+  function getModelLoadErrorMessage(error, attemptedRoots = modelRootCandidates) {
+    const rawMessage =
+      error?.message || error?.target?.statusText || error?.target?.responseURL || "";
+    const normalized = rawMessage.toLowerCase();
+    const rootSummary = attemptedRoots.join(" or ");
+
+    if (
+      normalized.includes("404") ||
+      normalized.includes("not found") ||
+      normalized.includes("scene.gltf") ||
+      normalized.includes("scene.bin")
+    ) {
+      return `The anatomy model files were not found at ${rootSummary}. Make sure that scene.gltf and scene.bin are publicly available there, or set PUBLIC_MYOLOGY_MODEL_ROOT to the correct folder URL.`;
+    }
+
+    return `The anatomy model could not be loaded (${rawMessage || "unknown loading error"}).`;
   }
 
   function getRegionLabel(mesh, point, modelRoot, modelBounds) {
@@ -301,7 +321,6 @@
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
       const selectableMeshes = [];
-      const modelUrl = new URL(MODEL_PATH, window.location.origin);
 
       async function getDecalGeometry() {
         decalGeometryPromise ??= import(
@@ -446,87 +465,92 @@
         syncAreas();
       }
 
-      async function loadModel(attempt = 1) {
-        try {
-          const url = new URL(modelUrl);
-          if (attempt > 1) {
-            url.searchParams.set("retry", String(attempt));
-          }
+      async function loadModel() {
+        let lastError;
 
-          loadState =
-            attempt > 1
-              ? "Retrying anatomy model load..."
-              : "Loading anatomy model...";
+        for (const [rootIndex, modelRoot] of modelRootCandidates.entries()) {
+          for (let attempt = 1; attempt <= 2; attempt += 1) {
+            try {
+              const url = new URL(`${modelRoot}/scene.gltf`, window.location.origin);
+              if (attempt > 1) {
+                url.searchParams.set("retry", String(attempt));
+              }
 
-          const gltf = await loader.loadAsync(url.toString());
-          loadedRoot = gltf.scene;
+              loadState =
+                attempt > 1
+                  ? "Retrying anatomy model load..."
+                  : rootIndex > 0
+                    ? "Trying fallback anatomy model path..."
+                    : "Loading anatomy model...";
 
-          loadedRoot.traverse((child) => {
-            if (!child.isMesh) return;
+              const gltf = await loader.loadAsync(url.toString());
+              loadedRoot = gltf.scene;
 
-            const materialName = getPrimaryMaterial(child)?.name ?? "";
-            if (materialName === "Muscles.001") {
-              selectableMeshes.push(child);
+              loadedRoot.traverse((child) => {
+                if (!child.isMesh) return;
+
+                const materialName = getPrimaryMaterial(child)?.name ?? "";
+                if (materialName === "Muscles.001") {
+                  selectableMeshes.push(child);
+                }
+              });
+
+              const bounds = new THREE.Box3().setFromObject(loadedRoot);
+              const center = bounds.getCenter(new THREE.Vector3());
+              const size = bounds.getSize(new THREE.Vector3());
+              modelBounds = {
+                minX: bounds.min.x,
+                maxX: bounds.max.x,
+                minY: bounds.min.y,
+                maxY: bounds.max.y,
+                minZ: bounds.min.z,
+                maxZ: bounds.max.z,
+                sizeX: size.x,
+                sizeY: size.y,
+                sizeZ: size.z,
+              };
+
+              loadedRoot.position.sub(center);
+              loadedRoot.position.y -= size.y * 0.08;
+              scene.add(loadedRoot);
+
+              const maxAxis = Math.max(size.x, size.y, size.z);
+              const fitDistance = maxAxis * 1.28;
+              camera.position.set(0, size.y * 0.12, fitDistance);
+              controls.target.set(0, size.y * 0.04, 0);
+              controls.update();
+
+              initialCameraPosition = camera.position.clone();
+              initialTarget = controls.target.clone();
+              resetCamera = () => {
+                camera.position.copy(initialCameraPosition);
+                controls.target.copy(initialTarget);
+                controls.update();
+              };
+
+              loadState = "";
+              ready = true;
+              selectedLabel = formatPainSummary(selectedAreas);
+              resize();
+
+              if (!frameId) {
+                animate();
+              }
+
+              return;
+            } catch (error) {
+              lastError = error;
+              console.error("Failed to load anatomy model", error);
+
+              if (attempt < 2) {
+                await new Promise((resolve) => setTimeout(resolve, 600));
+                continue;
+              }
             }
-          });
-
-          const bounds = new THREE.Box3().setFromObject(loadedRoot);
-          const center = bounds.getCenter(new THREE.Vector3());
-          const size = bounds.getSize(new THREE.Vector3());
-          modelBounds = {
-            minX: bounds.min.x,
-            maxX: bounds.max.x,
-            minY: bounds.min.y,
-            maxY: bounds.max.y,
-            minZ: bounds.min.z,
-            maxZ: bounds.max.z,
-            sizeX: size.x,
-            sizeY: size.y,
-            sizeZ: size.z,
-          };
-
-          loadedRoot.position.sub(center);
-          loadedRoot.position.y -= size.y * 0.08;
-          scene.add(loadedRoot);
-
-          const maxAxis = Math.max(size.x, size.y, size.z);
-          const fitDistance = maxAxis * 1.28;
-          camera.position.set(0, size.y * 0.12, fitDistance);
-          controls.target.set(0, size.y * 0.04, 0);
-          controls.update();
-
-          initialCameraPosition = camera.position.clone();
-          initialTarget = controls.target.clone();
-          resetCamera = () => {
-            camera.position.copy(initialCameraPosition);
-            controls.target.copy(initialTarget);
-            controls.update();
-          };
-
-          loadState = "";
-          ready = true;
-          selectedLabel = formatPainSummary(selectedAreas);
-          resize();
-
-          if (!frameId) {
-            animate();
           }
-        } catch (error) {
-          console.error("Failed to load anatomy model", error);
-
-          if (attempt < 2) {
-            await new Promise((resolve) => setTimeout(resolve, 600));
-            return loadModel(attempt + 1);
-          }
-
-          const message =
-            error?.message ||
-            error?.target?.statusText ||
-            error?.target?.responseURL ||
-            "unknown loading error";
-
-          loadState = `The anatomy model could not be loaded (${message}).`;
         }
+
+        loadState = getModelLoadErrorMessage(lastError);
       }
 
       loadModel();
@@ -587,11 +611,6 @@
     };
   });
 </script>
-
-<svelte:head>
-  <link rel="preload" href={MODEL_PATH} as="fetch" />
-  <link rel="preload" href={MODEL_BINARY_PATH} as="fetch" />
-</svelte:head>
 
 <div class="viewer-card">
   <div class="viewer-toolbar">
